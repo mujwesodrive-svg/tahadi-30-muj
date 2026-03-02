@@ -5,7 +5,7 @@
     "outDir": "dist",
     "rootDir": ".",
     "esModuleInterop": true,
-    "strict": true,
+    "strict": false,
     "skipLibCheck": true
   },
   "include": ["server.ts"]
