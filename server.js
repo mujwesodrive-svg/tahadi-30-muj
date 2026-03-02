@@ -48,14 +48,6 @@ if (!columnNames.includes("lastPlayed")) {
 
 
 
-if (!columnNames.includes("totalScore")) {
-  db.exec("ALTER TABLE users ADD COLUMN totalScore INTEGER DEFAULT 0");
-}
-
-if (!columnNames.includes("lastPlayed")) {
-  db.exec("ALTER TABLE users ADD COLUMN lastPlayed TEXT");
-}
-
 // ================= API =================
 
 // تسجيل مستخدم
