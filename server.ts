@@ -1,29 +1,22 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const app = express();
 
-async function startServer() {
-  const app = express();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-  // إذا في production (على Render)
-  if (process.env.NODE_ENV === "production") {
-    // نخدم ملفات dist المبنية
-    app.use(express.static(path.join(__dirname)));
-  } else {
-    // في التطوير فقط نشغل vite middleware
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-    });
+// يخدم الملفات الثابتة
+app.use(express.static(__dirname));
 
-    app.use(vite.middlewares);
-  }
+// أي مسار يرجع index.html
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
 
-  app.listen(3000, () => {
-    console.log("Server running on port 3000");
-  });
-}
+const PORT = process.env.PORT || 3000;
 
-startServer();
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
