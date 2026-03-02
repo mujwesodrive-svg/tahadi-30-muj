@@ -23,13 +23,30 @@ const db = new Database("tahadi.db");
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL
+    name TEXT NOT NULL,
+    totalScore INTEGER DEFAULT 0,
+    dailyScore INTEGER DEFAULT 0,
+    lastPlayed TEXT
   )
 `);
-
-// 🔥 إضافة الأعمدة تلقائيًا إذا كانت ناقصة
 const columns = db.prepare("PRAGMA table_info(users)").all();
 const columnNames = columns.map(c => c.name);
+
+if (!columnNames.includes("totalScore")) {
+  db.exec("ALTER TABLE users ADD COLUMN totalScore INTEGER DEFAULT 0");
+}
+
+if (!columnNames.includes("dailyScore")) {
+  db.exec("ALTER TABLE users ADD COLUMN dailyScore INTEGER DEFAULT 0");
+}
+
+if (!columnNames.includes("lastPlayed")) {
+  db.exec("ALTER TABLE users ADD COLUMN lastPlayed TEXT");
+}
+
+// 🔥 إضافة الأعمدة تلقائيًا إذا كانت ناقصة
+
+
 
 if (!columnNames.includes("totalScore")) {
   db.exec("ALTER TABLE users ADD COLUMN totalScore INTEGER DEFAULT 0");
@@ -54,16 +71,15 @@ app.post("/api/user", (req, res) => {
 
 // لوحة الصدارة
 app.get("/api/leaderboard", (req, res) => {
-  try {
-    const rows = db
-      .prepare("SELECT name, totalScore FROM users ORDER BY totalScore DESC")
-      .all();
+  const rows = db
+    .prepare(`
+      SELECT name, totalScore 
+      FROM users 
+      ORDER BY totalScore DESC
+    `)
+    .all();
 
-    res.json(rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Leaderboard error" });
-  }
+  res.json(rows);
 });
 
 // حالة المستخدم
@@ -94,18 +110,33 @@ app.get("/api/status/:id", (req, res) => {
 app.post("/api/submit", (req, res) => {
   try {
     const { userId, score } = req.body;
-    if (!userId) return res.status(400).json({ error: "User required" });
 
     const today = new Date().toISOString().split("T")[0];
 
+    const user = db
+      .prepare("SELECT lastPlayed FROM users WHERE id = ?")
+      .get(Number(userId));
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // منع اللعب مرتين بنفس اليوم
+    if (user.lastPlayed === today) {
+      return res.json({ message: "Already played today" });
+    }
+
     db.prepare(`
       UPDATE users
-      SET totalScore = totalScore + ?,
-          lastPlayed = ?
+      SET 
+        totalScore = totalScore + ?,
+        dailyScore = ?,
+        lastPlayed = ?
       WHERE id = ?
-    `).run(Number(score), today, Number(userId));
+    `).run(Number(score), Number(score), today, Number(userId));
 
     res.json({ success: true });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Submit error" });
