@@ -9,8 +9,7 @@ app.use(express.json());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database("tahadi.db");
-
+const db = new Database("tahadi_new.db");
 // إنشاء جدول إذا لم يوجد
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
