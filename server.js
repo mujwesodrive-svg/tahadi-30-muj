@@ -46,17 +46,18 @@ app.get("/api/status/:id", (req, res) => {
 // إرسال النتيجة
 app.post("/api/submit", (req, res) => {
   const { userId, score } = req.body;
-  db.prepare("UPDATE users SET totalScore = totalScore + ? WHERE id = ?")
-    .run(score, userId);
+
+  const today = new Date().toISOString().split("T")[0];
+
+  db.prepare(`
+    UPDATE users
+    SET totalScore = totalScore + ?,
+        lastPlayed = ?
+    WHERE id = ?
+  `).run(Number(score), today, Number(userId));
+
   res.json({ success: true });
 });
-
-// static frontend
-app.use(express.static(path.join(__dirname, "dist")));
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "dist", "index.html"));
-});
-
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("Server running on port " + PORT);
