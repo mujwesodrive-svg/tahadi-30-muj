@@ -9,17 +9,10 @@ app.use(express.json());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ================= DATABASE =================
-
-// إذا عندك Disk على Render استخدم:
-/*
-const db = new Database("/data/tahadi.db");
-*/
-
-// إذا ما عندك Disk:
+// ====== DATABASE ======
 const db = new Database("tahadi.db");
 
-// إنشاء الجدول الأساسي (بدون الأعمدة الإضافية)
+// إنشاء جدول إذا غير موجود
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,6 +22,8 @@ db.exec(`
     lastPlayed TEXT
   )
 `);
+
+// تأكد الأعمدة موجودة (لو قاعدة قديمة)
 const columns = db.prepare("PRAGMA table_info(users)").all();
 const columnNames = columns.map(c => c.name);
 
@@ -44,16 +39,17 @@ if (!columnNames.includes("lastPlayed")) {
   db.exec("ALTER TABLE users ADD COLUMN lastPlayed TEXT");
 }
 
-// 🔥 إضافة الأعمدة تلقائيًا إذا كانت ناقصة
-
-
-
-// ================= API =================
+//
+// ================= API ROUTES =================
+//
 
 // تسجيل مستخدم
 app.post("/api/user", (req, res) => {
   const { name } = req.body;
-  if (!name) return res.status(400).json({ error: "Name required" });
+
+  if (!name) {
+    return res.status(400).json({ error: "Name required" });
+  }
 
   const stmt = db.prepare("INSERT INTO users (name) VALUES (?)");
   const info = stmt.run(name);
@@ -61,52 +57,41 @@ app.post("/api/user", (req, res) => {
   res.json({ id: info.lastInsertRowid, name });
 });
 
-// لوحة الصدارة
-app.get("/api/leaderboard", (req, res) => {
-  const rows = db
-    .prepare(`
-      SELECT name, totalScore 
-      FROM users 
-      ORDER BY totalScore DESC
-    `)
-    .all();
-
-  res.json(rows);
-});
-
 // حالة المستخدم
 app.get("/api/status/:id", (req, res) => {
-  try {
-    const user = db
-      .prepare("SELECT totalScore, lastPlayed FROM users WHERE id = ?")
-      .get(req.params.id);
+  const id = Number(req.params.id);
 
-    if (!user) {
-      return res.json({ hasParticipated: false });
-    }
+  const user = db
+    .prepare("SELECT dailyScore, lastPlayed FROM users WHERE id = ?")
+    .get(id);
 
-    const today = new Date().toISOString().split("T")[0];
-    const hasParticipated = user.lastPlayed === today;
-
-    res.json({
-      hasParticipated,
-      score: user.totalScore || 0
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Status error" });
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
   }
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const hasParticipated = user.lastPlayed === today;
+
+  res.json({
+    hasParticipated,
+    score: user.dailyScore || 0
+  });
 });
 
-// تسليم النتيجة
+// إرسال نتيجة
 app.post("/api/submit", (req, res) => {
   try {
     const { userId, score } = req.body;
 
+    if (!userId) {
+      return res.status(400).json({ error: "User ID required" });
+    }
+
     const today = new Date().toISOString().split("T")[0];
 
     const user = db
-      .prepare("SELECT lastPlayed FROM users WHERE id = ?")
+      .prepare("SELECT * FROM users WHERE id = ?")
       .get(Number(userId));
 
     if (!user) {
@@ -135,7 +120,22 @@ app.post("/api/submit", (req, res) => {
   }
 });
 
+// لوحة الصدارة (تراكمية)
+app.get("/api/leaderboard", (req, res) => {
+  const rows = db
+    .prepare(`
+      SELECT name, totalScore 
+      FROM users 
+      ORDER BY totalScore DESC
+    `)
+    .all();
+
+  res.json(rows);
+});
+
+//
 // ================= SERVE FRONTEND =================
+//
 
 app.use(express.static(path.resolve(__dirname, "dist")));
 
@@ -143,7 +143,9 @@ app.get("*", (req, res) => {
   res.sendFile(path.resolve(__dirname, "dist", "index.html"));
 });
 
+//
 // ================= START SERVER =================
+//
 
 const PORT = process.env.PORT || 10000;
 
