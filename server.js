@@ -9,10 +9,13 @@ app.use(express.json());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ====== DATABASE ======
+//
+// ================= DATABASE =================
+//
+
 const db = new Database("tahadi.db");
 
-// إنشاء جدول إذا غير موجود
+// إنشاء جدول
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,22 +25,6 @@ db.exec(`
     lastPlayed TEXT
   )
 `);
-
-// تأكد الأعمدة موجودة (لو قاعدة قديمة)
-const columns = db.prepare("PRAGMA table_info(users)").all();
-const columnNames = columns.map(c => c.name);
-
-if (!columnNames.includes("totalScore")) {
-  db.exec("ALTER TABLE users ADD COLUMN totalScore INTEGER DEFAULT 0");
-}
-
-if (!columnNames.includes("dailyScore")) {
-  db.exec("ALTER TABLE users ADD COLUMN dailyScore INTEGER DEFAULT 0");
-}
-
-if (!columnNames.includes("lastPlayed")) {
-  db.exec("ALTER TABLE users ADD COLUMN lastPlayed TEXT");
-}
 
 //
 // ================= API ROUTES =================
@@ -71,10 +58,8 @@ app.get("/api/status/:id", (req, res) => {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const hasParticipated = user.lastPlayed === today;
-
   res.json({
-    hasParticipated,
+    hasParticipated: user.lastPlayed === today,
     score: user.dailyScore || 0
   });
 });
@@ -120,12 +105,12 @@ app.post("/api/submit", (req, res) => {
   }
 });
 
-// لوحة الصدارة (تراكمية)
+// لوحة الصدارة (تراكمي)
 app.get("/api/leaderboard", (req, res) => {
   const rows = db
     .prepare(`
-      SELECT name, totalScore 
-      FROM users 
+      SELECT name, totalScore
+      FROM users
       ORDER BY totalScore DESC
     `)
     .all();
